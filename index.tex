@@ -1,0 +1,728 @@
+\documentclass{wsrest2014}
+\usepackage[utf8]{inputenc}
+
+% Paper size (letter)
+\setlength{\pdfpagewidth}{8.5in}
+\setlength{\paperwidth}{8.5in}
+\setlength{\pdfpageheight}{11in}
+\setlength{\paperheight}{11in}
+
+% Typography
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage{microtype}
+\renewcommand{\email}{}
+
+% References
+\usepackage[hyphens]{url}
+\usepackage[hidelinks,pdfpagelabels=false]{hyperref}
+\usepackage[capitalize,noabbrev]{cleveref}
+
+% Balance columns
+\usepackage{flushend}
+
+\makeindex
+
+\begin{document}
+
+%\newcommand{texttesh}{textteshlig\/}
+
+\title{Hold Your Nose vs. Follow Your Nose}
+\subtitle {Observations on the state of service description on the Web}
+
+\numberofauthors{1}\author{
+\alignauthor
+Mike Amundsen\\
+    \affaddr{Principal API Architect, Layer 7 Technologies}\\
+	\email{mca@amundsen.com}
+}
+
+\maketitle
+
+\begin{abstract}
+ \par{}The first service description format for the Web appeared in 2001. The second didn't arrive until 2007. In 2010 there were less than five known service description formats. As of this writing there are more than a dozen. We're experience a ``Cambrian explosion'' of service description formats!
+ \par{}Why all these new formats? Is there something missing that each new type tries to fix? Or are these new foramts just repeating the same patterns over and over? This paper 1) explores two main approaches to service description design (describing functionality and describing things), 2) reviews key shortcomings of existing approaches that lead to client applications tightly bound to a single service instance, 3) offers up a new set of measures for useful service description, and 4) introduces an alternative format  that supports the key Web principle of \emph{follow your nose}.
+
+\end{abstract}
+\hypertarget{_brief_tour_of_service_description_formats}{}
+\section{Brief Tour of Service\\Description Formats}
+\label{_brief_tour_of_service_description_formats}
+ \par{}The first service description format for the Web appear in 2001. The second one didn't arrive until 2007. By 2010 there were less than five known service description formats. As of this writing there are more than a dozen. We're experience a ``Cambrian explosion'' of service description formats!
+ \par{}Despite the wide number of formats available, they all fall into two rather narrow categories: those that describe \emph{functionality} and those that describe \emph{things.} Both approaches have roots in early computer programming models such as interface description language (IDL)\hyperlink{Wulf81}{[Wulf81]} and object-oriented programming(OOP) and neither approach is appropriate for the Web. The Web was conceived \textquotedbl{}a web of nodes in which the user can browse at will.\textquotedbl{}\hyperlink{WWW90}{[WWW90]}. It is meant to be a place where items are linked together in a myriad of ways and where the notion of \textquotedbl{}follow your nose\textquotedbl{}\hyperlink{Connolly02}{[Connolly02]} means users (and even machines) should be able to travel any desired path that may exist within the network. Service description formats today do not support these notions. In fact most of them are openly hostile to these notions. As a result, most \emph{client} implementations derived from these service documents are unable to travel desired paths and are instead designed to ``hold their nose'' and ignore any  additional links or data elements that may appear over time.
+ \par{}In this paper, the first section focuses on two main approaches to service description: describing functionality and describing things. It contains a handful of examples and points to problems with these common approaches. Section 2 (Shortcomings of Existing Formats) details the problems in depth. Secton 3 identifies new measures for a successful format that supports and promotes the principles of the Web (Toward a New Service Description Format), and finally, Section 4 presents a possible solution (Application-Level Profile Semantics (ALPS)) along with some critical commentary.
+\hypertarget{_describing_functionality}{}
+\subsection{Describing Functionality}
+\label{_describing_functionality}
+ \par{}One class of service descriptions focuses on capturing \emph{functionality} by selecting portions of internal programming code and exposing it for use on the Web. The most well-known instance of this approach is Web Services Definition Language or WSDL\hyperlink{WSDL01}{[WSDL01]} for SOAP Services\hyperlink{SOAP07}{[SOAP07]} . Essentially, WSDL describes remote procedure calls, objects, and data types that appear in the source code of the service being described.
+\\minisec{Listing: WSDL Example}
+\begin{verbatim}<binding name="StockQuoteSoapBinding"
+  type="tns:StockQuotePortType">
+  <soap:binding style="document"
+    transport="http://schemas.xmlsoap.org/soap/http"/>
+  <operation name="GetLastTradePrice">
+    <soap:operation
+      soapAction="http://example.com/GetLastTradePrice"/>
+    <input>
+      <soap:body use="literal"/>
+    </input>
+    <output>
+      <soap:body use="literal"/>
+    </output>
+  </operation>
+</binding>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}A similar approach is used by RESTdesc\hyperlink{RESTDesc11}{[RESTDesc11]}. Described as \textquotedbl{}a semantic semantic service description approach that centers on functionality\textquotedbl{}\hyperlink{RESTDesc12}{[RESTDesc12]}, RESTdesc uses the RDF/Notation3 format to describe pre-conditions, state transfer requirements,  and expected return values (post-conditions).
+\\minisec{Listing: RESTdesc functionality}
+\begin{verbatim}@prefix : <http://example.org/image#>.
+@prefix http: <http://www.w3.org/2011/http#>.
+@prefix dbpedia: <http://dbpedia.org/resource/>.
+@prefix dbpedia-owl: <http://dbpedia.org/ontology/>.
+{
+  ?image :smallThumbnail ?thumbnail.
+}
+=>
+{
+  _:request http:methodName "GET";
+            http:requestURI ?thumbnail;
+            http:resp [ http:body ?thumbnail ].
+  ?image dbpedia-owl:thumbnail ?thumbnail.
+  ?thumbnail a dbpedia:Image;
+             dbpedia-owl:height 80.0.
+}.\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Microsoft's Conceptual Schema Definition Language (CSDL)\hyperlink{csdl2009}{[csdl2009]} takes a similar approach by exposing functions via the \texttt{\textless{}FunctionImport name=\textquotedbl{}\dots{}\textquotedbl{}\textgreater{}} element within a schema that includes \texttt{EntityType}, \texttt{Association} and other similar elements.
+\\minisec{Listing: CSDL Example}
+\begin{verbatim}<!-- Service Operation -->
+....
+<FunctionImport Name="CustomersByCity"
+    EntitySet="Customers"
+    ReturnType="Collection(SampleModel.Customer)"
+    m:HttpMethod="GET">
+  <Parameter Name="city" Type="Edm.String" Mode="In"/>
+</FunctionImport>
+....\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}It should be noted that exposing functions via RPC-style IDL run counter to the hyperlink approach used in HTML\hyperlink{HtmlW3c}{[HtmlW3c]},\\ VoiceXML\hyperlink{Voice04}{[Voice04]} and other early formats for the Web such as HyTime\hyperlink{HyTime94}{[HyTime94]}.
+\hypertarget{_describing_things}{}
+\subsection{Describing Things}
+\label{_describing_things}
+ \par{}Another common approach is to use service description formats to define \emph{things} or objects that can be passed between client and server. Usually these \emph{things} can be manipulated via a set of protocol methods. The Atom Publishing Protocol\hyperlink{RFC5023}{[RFC5023]} uses Service Documents to define \texttt{workspaces}, \texttt{collections}, and \texttt{categories} which are used to access \texttt{entry} objects which can be modified by using HTTP for \textquotedbl{}the creating, editing, and deleting of Entry and Media Resources.\textquotedbl{}\hyperlink{RFC5023}{[RFC5023]}
+\\minisec{Listing: AtomSvc Example}
+\begin{verbatim}<?xml version="1.0" encoding='utf-8'?>
+<service xmlns="http://www.w3.org/2007/app"
+  xmlns:atom="http://www.w3.org/2005/Atom">
+  <workspace>
+    <atom:title>Main Site</atom:title>
+    <collection
+      href="http://example.org/blog/main" >
+      <atom:title>My Blog Entries</atom:title>
+      <categories
+        href="http://example.com/cats/forMain.cats" />
+     </collection>
+  </workspace>
+</service>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Many other service description formats take the same approach including (among others) the Web Application Description Language (WADL)\hyperlink{WADL09}{[WADL09]}, Swagger\hyperlink{Swagger13}{[Swagger13]}, JSON Home\\\hyperlink{JSONHome03}{[JSONHome03]}.
+ \par{}The manipulation of these objects/things is almost always tied to the HTTP protocol and a subset of the available methods: \texttt{POST}, \texttt{GET}, \texttt{PUT}, and \texttt{DELETE}. It is likely no coincidence that this protocol subset closely matches a subset of SQL Data Manipulation Language (DML)\hyperlink{SQL92}{[SQL92]}: \texttt{INSERT}, \texttt{SELECT}, \texttt{UPDATE}, and \texttt{DELETE}. It is common for service implementations to simply expose stored data tables (users, customers, products, etc.) over HTTP by defining resources with the same names and serializing data rows using XML or JSON. This manipulation pattern is often referred to as \emph{CRUD} or Create, Read, Update, Delete.
+ \par{}Focusing on serializing objects between client and server via the CRUD model over HTTP ignores many of key design features of HTTP. The ability to transfer arbitrary state values is lost (unless new objects are invented), important HTTP methods are ignored (including HEAD and PATCH), and the freedom to treat message payloads as text documents (plain text), argument lists (\texttt{application/x-www-forms-urlencoded}), or even binary streams (PNG) is sidelined in favor of simple data manipulation and object-passing.
+\hypertarget{_summary}{}
+\subsection{Summary}
+\label{_summary}
+ \par{}In one of his early proposals, Tim Berners-Lee described the WorldWideWeb as \textquotedbl{}\dots{}forming of a web of information nodes rather than a hierarchical tree or an ordered list\dots{}\textquotedbl{}\hyperlink{WWW90}{[WWW90]}. Yet, most description formats today rely heavily on the notion of function libraries and object hierarchies. Legacy thinking based on early Interface Description Languages (IDL) was used to create the first widely-used service description format (WSDL) and the object oriented ethos of the 1980s continues to influence many other formats today (WADL, Swagger, etc.).
+\hypertarget{_shortcomings_of_existing_formats}{}
+\section{Shortcomings of Existing\\Formats}
+\label{_shortcomings_of_existing_formats}
+ \par{}The two approaches in service description formats - that of describing functionality and describing things - ignore fundamental aspects of the Web. They make it difficult to support the \emph{follow-your-nose} principle and hard to support the notion of \textquotedbl{}serendipitous reuse\textquotedbl{}\hyperlink{Charlton07}{[Charlton07]}. In some cases, these formats were created and standardized before the ideas like \textquotedbl{}a web of nodes\textquotedbl{} and \textquotedbl{}serendipitous reuse\textquotedbl{} were commonly understood. In other cases, service descriptions were explicitly designed to ignore features of the Web in order to continue existing models.
+ \par{}No matter the reasons, the bulk of service description formats today suffer from a number of shortcomings. These include 1) a focus on object-passing, 2) describing instances rather than classes of services, 3) specifying protocols andc4) constraining media type usage. What follows is a review these shortcomings along with some conclusions on how they affect the process of creating robust client applications for the Web.
+\hypertarget{_focused_on_objects}{}
+\subsection{Focused on Objects}
+\label{_focused_on_objects}
+ \par{}Many description formats for the Web focus on explicitly defining objects that will be passed between client and server. For example, the WSDL format uses the \texttt{\textless{}type\textgreater{}} element which \textquotedbl{}\dots{}encloses data type definitions that are relevant for the exchanged messages.\textquotedbl{}\hyperlink{WSDL07}{[WSDL07]}.
+ \par{}One of the key problems of focusing on object-passing for Web services is that is raises the bar for shared understanding between client and server. Clients and servers must agree \emph{a priori} on the shape of each and every object to be shared. In addition, the actual shape of each object becomes harder and harder to agree upon as more parties being to use the object. As Fielding states, \textquotedbl{}it is far easier to standardize representation and relation types than it is to standardize objects and object-specific interfaces\textquotedbl{}\hyperlink{Fielding08}{[Fielding08]}. There are many stories of IT projects foundering on the rocks of object hierarchy definition.
+ \par{}Object-focus may slow initial design and implementation of IT projects and can over-constrain interactions between parties at runtime. It also introduces additional fragility to the service since modifications in the shape and even the identity and meaning of complex objects is likely to change over time.
+\hypertarget{_limited_to_instances}{}
+\subsection{Limited to Instances}
+\label{_limited_to_instances}
+ \par{}Almost all service descriptions - whether focused on functionality or things - are limited to decriging only a single instance of a service on the web. This means that client applications wishing to access the same functionality at two different servers will need to operate on two different description documents. This is true even when the description \emph{format} for both servers is identical. In other words, service descriptions are not designed to describe a set or class of similar services operating indpendently at multiple locations.
+ \par{}This limitation occurs because most service description formats use static URLs as part of the service description. For example, the Web Application Description language (WADL)\hyperlink{WADL09}{[WADL09]} employs a \texttt{\textless{}resources base=\textquotedbl{}\dots{}\textquotedbl{}\textgreater{}} element that defines the base URL for the service. This element has a set of child elements (\texttt{\textless{}resource path=\textquotedbl{}\dots{}\textquotedbl{}\textgreater{}}) which \textquotedbl{}describes a set of resources, each identified by a URI\dots{}\textquotedbl{}\hyperlink{WADL09}{[WADL09]}.
+\\minisec{Listing: WADL Example}
+\begin{verbatim}<resources base="http://example.com/">
+  <resource path="widgets">
+    <resource path="reports/stock">
+      <param name="instockonly" style="matrix"
+        type="xsd:boolean"/>
+      ...
+    </resource>
+    <resource path="{widgetId}">
+      ...
+    </resource>
+      ...
+  </resource>
+</resources>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Similarly, the Swagger\hyperlink{Swagger13}{[Swagger13]} specification uses the \texttt{basePath} property and each member of the \texttt{apis} array contains a \texttt{path} property.
+\\minisec{Listing: Swagger Example}
+\begin{verbatim}{
+  "apiVersion": "0.2",
+  "swaggerVersion": "1.2",
+  "basePath": "http://petstore.swagger.wordnik.com/api",
+  "resourcePath": "/pet"
+  ...
+  "apis":[
+    {
+      "path":"/pet/{petId}",
+      "description":"Operations about pets",
+      "operations":[
+        {...}
+      ]
+    }
+  ]
+  "models" : {...}
+}\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Even though some of these formats mark the \texttt{path} element as optional, in practice every service publisher creates descriptions that include these values. As a result, each description constrains the list of possible resources by listing a \emph{complete set} of URLs for the service instance. This practice has harmful side effects at runtime.
+ \par{}By offering up a list of static URLs, client applications are led into baking these URLs into their own code. This is a \emph{feature} of code-generating tools for the WSDL format. Not only does this practice bind the client application to a single instance of the server, but it can also lead to broken client applications if the target server's base address or internal path URLs change over time.
+ \par{}Another problem with this approach is that client applications are bound to a closed set of interactions controlled only by the server. This means client applications wishing to interact with similar (but not identical) servers providing the same service (e.g. package tracking, shopping cart management, banking, etc.) are unable to easily move between providers.
+ \par{}Most service description formats today can only describe a single instance of a service and limit client's ability to interact with similar services on the Web. In this way client applications become \emph{captives} of a single service instance.
+\hypertarget{_specifying_protocol}{}
+\subsection{Specifying Protocol}
+\label{_specifying_protocol}
+ \par{}The majority of service description formats assume a single protocol for the service implementation and protocol is almost always HTTP. Very few formats allow providers to offer more than one protocol. For example, the WADL format \textquotedbl{}is designed to provide a machine process-able description of \dots{} HTTP-based Web applications.\textquotedbl{}\hyperlink{WADL09}{[WADL09]}. In fact there is no indication of protocol within the message format itself. According to the XSD Schema for WADL\hyperlink{WadlXsd}{[WadlXsd]} the \texttt{\textless{}method name=\textquotedbl{}\dots{}\textquotedbl{}\textgreater{}} element supports a limited and fixed set of values for the \texttt{name} property (GET, POST, PUT, HEAD, DELETE). It should be noted that all but one of these methods are also supported by the proposed Constrained Application Protocol (CoAP)\hyperlink{COAP18}{[COAP18]}.
+ \par{}Most of the recently created formats (e.g. Swagger\hyperlink{Swagger13}{[Swagger13]}, CSDL\hyperlink{csdl2009}{[csdl2009]}, JSON Home\hyperlink{JSONHome03}{[JSONHome03]}, etc.) assume HTTP as the only supported protocol. While this makes implementation initially simpler, it also reduces the reach and possibly the longevity of both the service and the service description format.
+ \par{}A notable exception to this \textquotedbl{}assumed HTTP\textquotedbl{} pattern is the \\WSDL\hyperlink{WSDL01}{[WSDL01]} format. WSDL was designed from the start to support multi-ple protocol via the \texttt{\textless{}wsoap12:binding transport=\textquotedbl{}\dots{}\textquotedbl{} /\textgreater{}} element. The author was able to find documents detailing the use of SOAP over XMPP\hyperlink{SoapXmpp}{[SoapXmpp]}, Java Message Service\hyperlink{SoapJms}{[SoapJms]}, and even SOAP over SMTP\hyperlink{SoapSmtp}{[SoapSmtp]}.
+ \par{}Despite the existence of the protocol-agnostic WSDL format, the general pattern in creating service descriptions is to assume HTTP and to not support additional protocols.
+\hypertarget{_constraining_media_types}{}
+\subsection{Constraining Media-Types}
+\label{_constraining_media_types}
+ \par{}Similar to the way they handle protocols, many existing service descriptions constrain the media type used at runtime to transfer state between client and server. In some cases (e.g. WSDL\hyperlink{WSDL01}{[WSDL01]}, Google Discovery Document\hyperlink{GoogleDisc}{[GoogleDisc]}, JSON Hyperschema\\\hyperlink{JSONHyper}{[JSONHyper]}, etc.) the format is simply assumed based on the format of the service description document (XML for WSDL and JSON for Google Discovery and JSON Hyperschema).
+ \par{}For some formats, the media type is defined per service. For example the RESTful Application Modeling Language (RAML)\hyperlink{RAML08}{[RAML08]} uses a YAML format with a \texttt{mediaType} element at the API (service) level.
+\\minisec{Listing: RAML Example}
+\begin{verbatim}#%RAML 0.8
+---
+title: Example API
+version: v1
+mediaType: application/json
+schemas:
+  users: !include schemas/users.json
+  user: !include schemas/user.json
+resourceTypes:
+... and so forth ...\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Some service descriptions support describing the media types returned at the resource level. For example, WADL\hyperlink{WADL09}{[WADL09]} has the \texttt{\textless{}representation mediaType=\textquotedbl{}\dots{}\textquotedbl{} /\textgreater{}} element.
+\\minisec{Listing: WADL Example}
+\begin{verbatim}<method name="GET">
+ <request>
+  <param name="format" style="query">
+   <option value="xml" mediaType="application/xml"/>
+   <option value="json" mediaType="application/json"/>
+  </param>
+  ...
+ </request>
+ <response>
+  <representation mediaType="application/xml"/>
+  <representation mediaType="application/json"/>
+ </response>
+</method>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}The JSON Home\hyperlink{JSONHome03}{[JSONHome03]} format uses the notion of \textquotedbl{}format hints\textquotedbl{} to provide information on possible media types used in responses.
+\\minisec{Listing: JSON Home Example}
+\begin{verbatim}{
+ "resources": {
+   "http://example.org/rel/widgets": {
+     "href": "/widgets/"
+   },
+   "http://example.org/rel/widget": {
+     ...
+     },
+     "hints": {
+       "allow": ["GET", "PUT", "DELETE", "PATCH"],
+       "formats": {
+         "application/json": {}
+       },
+       ...
+     }
+   }
+ }
+}\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}The good news is that the pattern relying on a single media type in responses is not common in most of the new description formats.
+\hypertarget{_summary_2}{}
+\subsection{Summary}
+\label{_summary_2}
+ \par{}Most of the existing service description formats exhibit shortcomings when it comes to supporting the Web principles of \textquotedbl{}follow you nose\textquotedbl{} and \textquotedbl{}serendipitous resuse.\textquotedbl{} Chief among these are descriptions that focus on object-passing instead of state-transfer as a way of communicating domain information. All the reviewed formats define fixed URLs (absolute or relative) and, as a result are limited to describing a single instance of a service instead of a set or class of services that share a common description. Most formats assume a single transfer protocol is used (HTTP) and some still do not allow the media type of responses to be defined at either a service or resource level.
+ \par{}These constraints usually produce server implementations that are unable to share service descriptions among similar peers which are constrained to a single protocol and media type. As a result, client applications that can successfully interact with these services are usually bound tightly to that single service instance and are unable to accommodate new URLs that may appear over time and have no ability to select preferred protocols or media types when interacting with services.  These are clients that are basically designed to memorize a single set of fixed interactions for a single service instance using a single protocol and media type. Any new information (new resources, new state transitions within existing resources, additional server instances, protocols, or formats) is ignored. These clients are built to \emph{hold their nose} instead of \emph{follow their nose} when it comes to interactions on the Web.
+\hypertarget{_toward_a_new_service_description_format}{}
+\section{Toward a New Service\\Description Format}
+\label{_toward_a_new_service_description_format}
+ \par{}If existing formats fall short in describing services that support the follow-your-nose principle, what is needed instead? What would it take to create a description format that allows clients to follow their nose through the available nodes in the network? How can a service description promote serendipitous reuse? What is an alternative to describing functionality or describing things?
+ \par{}Below are some guiding principles to use when considering a new description format:
+  \begin{itemize}
+\item%
+It should not constrain URLs. Server implementors should be free to manage their own URL space as they see fit.
+
+\item%
+It should not limit the protocols for an implementation of that service. Implementors should have the freedom to select the protocol that best fits their needs without having to create new description documents for the same service.
+
+\item%
+It should not constrain the media types used to transfer state between client and server. Implementors should be allowed to select one or more media types that are appropriate for the target audience and technical goals.
+
+\item%
+It should focus on defining a shared vocabulary of state and action elements understood by all parties and not dictate object models or hierarchies.
+
+\item%
+It should clearly describe possible interactions (read, write, etc.) in machine-readable form.
+
+\end{itemize}
+ \par{}By allowing servers to determine their own implementation details, while clearly defining both state values and actions in a machine-readable way, a single service description can be used in to build many different solutions and a single client application can still be expected to successfully interact with that service - even in cases where the client serendipitously locates a particular instance of that service for the first time.
+ \par{}What follows are additional details on the principles listed above.
+\hypertarget{_describe_affordances}{}
+\subsection{Describe Affordances}
+\label{_describe_affordances}
+ \par{}First and foremost the service description must not define URLs or static resource model. Instead, the format should define affordances. These affordances should be machine readable and should fully describe the details of a client-server interaction including:
+  \begin{itemize}
+\item%
+Some indication of \emph{why} someone (or some machine) would decide to use this affordance
+
+\item%
+A list of any parameters that could be passed from client to server
+
+\item%
+An indication of the protocol action to be used to initiate the request
+
+\item%
+An indication of the possible values that will be returned when the request is completed
+
+\end{itemize}
+ \par{}For example, below is an affordance description for searching on the Web
+\\minisec{Listing: Affordance Description}
+\begin{verbatim}affordance:
+  use      : search
+  request  :
+    action : read
+    params : q
+    format : application/x-www-form-urlencoded
+  response :
+    type   : links
+    format : text/html\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Notice that there is no URL or resource indication in the description. Service descriptions do not need to document URLs - they will be supplied at runtime by the server. Service descriptions should not define resources, either. They should focus on the actual actions that may be available within the problem domain (accounting, microblogging, etc.) and not constrain when or where those actions (affordances) will appear.
+ \par{}In some cases, a set of actions will only be available to administrators. In other cases, one service implementor may group affordances on a single resource and another may place one on each affordance on its own resource. Like URLs, these are decisions made at runtime by services and are not needed in the description
+\hypertarget{_focus_on_vocabulary}{}
+\subsection{Focus on Vocabulary}
+\label{_focus_on_vocabulary}
+ \par{}Service descriptions that define object hierarchies greatly constrain both client and server implementations. Object trees are very dense models. Not only do object trees define data elements (\texttt{familyName}, \texttt{givenName}, \texttt{person}, \texttt{team}, etc.) they define the \emph{relationships} between each data element (\texttt{familyName} and \texttt{givenName} are sub-elements of \texttt{person}, \texttt{person} is a member of a \texttt{team}, etc.). Also, in practical terms, the larger the audience you wish to share these definitions, the more difficult it is to gain agreement on the shape of object trees. This is even more problematic when the object trees themselves are large and/or the problem domain they describe (world health, economics, etc.) is large and/or complex.
+ \par{}Service documents should focusing on a shared vocabulary rather than a shared object model. Essentially, the service description should establish a \emph{dictionary} of terms independent of their relationship to each other. The \emph{relationships} can be expressed at runtime by the various services that use these agreed-upon terms.
+ \par{}By removing objects and relationships from the service document, the same description can support several different use cases. For example, a \texttt{team} might be assigned a \texttt{givenName}, etc. and there is no need to bake this into the service description.
+\hypertarget{_protocol_agnostic}{}
+\subsection{Protocol Agnostic}
+\label{_protocol_agnostic}
+ \par{}Service descriptions should be designed to support multiple protocols (as does SOAP\hyperlink{SOAP07}{[SOAP07]}) or leave protocol implementation out completely. Most service descriptions covered here are designed to support a single network protocol (HTTP) and refer to HTTP verbs such as \texttt{GET},  \texttt{POST}, etc. directly in the document. This renders the descriptions incomplete or invalid for implementations that wish to use CoAP\hyperlink{coap11}{[coap11]}, XMPP\hyperlink{XMPP11}{[XMPP11]}, and other protocols.
+ \par{}One way to decouple service description from protocol is to use an independent set of words for protocol verbs; ones that can easily be translated into protocol-specific verbs by implementors. A workable example was described by this author\hyperlink{amundsen2011}{[amundsen2011]} based on characterizing network protocol requests as to their degree of ``safety'' and ``idempotence'' (see Table 1 for examples).
+  \begin{table}
+  \begin{center}
+ \caption{Examples of Safety and Idempotence}
+ \begin{tabular}{lllllllllllllll
+ }
+ 
+ Protocol  &
+ Method  &
+ Safe  &
+ Idempotent %
+ \tabularnewline
+
+ HTTP      &
+ GET     &
+ Y     &
+ Y %
+ \tabularnewline
+
+           &
+ PUT     &
+ N     &
+ Y %
+ \tabularnewline
+
+           &
+ POST    &
+ N     &
+ N %
+ \tabularnewline
+
+ FTP       &
+ RETR    &
+ Y     &
+ Y %
+ \tabularnewline
+
+           &
+ STOR    &
+ N     &
+ Y %
+ \tabularnewline
+
+           &
+ STOU    &
+ N     &
+ N %
+ \tabularnewline
+ \end{tabular}
+  \end{center}
+  \end{table}
+ \par{}Service descriptions can use the concepts of safety and idempotence to accurately describe network request details without having to constrain the protocol used for implementing the service. This allows service descriptions to be useful across a wide range of protocols - even protocols not yet invented.
+\hypertarget{_media_type_independence}{}
+\subsection{Media-Type Independence}
+\label{_media_type_independence}
+ \par{}Service description should either 1) allow each response to be defined with more than one media type or 2) describe responses in such a way that media type is unimportant for the description document and can be handled independently by implementors. This allows the same service description to be used no matter the message model (or models) used for implementing the service.
+ \par{}Some service documents constrain the media types used when constructing representations at runtime. This overly limits the use of the service description. There are some very nice features of some JSON-base service descriptions that are only designed to describe JSON representations. If a developer wants to render responses in XML, then some service descriptions are unacceptable. While it is possible to define the same service model in both XML and JSON, what of YAML? HTML? and any other format that may come along at some point? Do we continue to duplicate the same description model for each and every media type?
+\hypertarget{_summary_3}{}
+\subsection{Summary}
+\label{_summary_3}
+ \par{}This section has explored a set of new goals for service description. Goals that do not over constrain implementors and still provide clear descriptions of data elements hypermedia affordances. With these goals in mind, it is possible to outline a new service description format that meets these new requirements.
+\hypertarget{_application_level_profile_semantics_alps}{}
+\section{Application-Level Profile\\Semantics (ALPS)}
+\label{_application_level_profile_semantics_alps}
+ \par{}This section introduces the Application-Level Profile Semantics (ALPS)\hyperlink{ALPS01}{[ALPS01]} service description format. This format was designed to support the goals outlined earlier in this paper including:
+\begin{itemize}
+
+\item%
+Describe Interfaces, not an Implementations :
+   Do not constrain the server's URLs or resource model.
+
+\item%
+Protocol Agnostic :
+   Describe network interactions in terms of ``safety'' and ``idempotence''
+
+\item%
+Media-Type Independence :
+   Allow service programmers to select the media types used in the implementation
+
+\item%
+Focus on Vocabularies, not Object Models :
+   Allow service descriptions to define data as ``terms'' which are independent of any implementation hierarchy or object model.
+\end{itemize}
+
+ \par{}Along with these already stated goals, the ALPS format was design to also support:
+
+\begin{itemize}
+
+\item%
+Runtime Identification of Profiles :
+    Service document URLs are used with the ``profile'' link relation value\hyperlink{rfc6906}{[rfc6906]} so that both parties can recognize and acknowledge shared understanding of the service description
+
+\item%
+Documentation Generation :
+    ALPS documents can also be used to provide machine-generated human-readable documentation
+
+\item%
+Code Generation :
+    ALPS documents are designed to support machine-generated ``code stubs'' to be used as scaffolding for server and client developers.
+
+\end{itemize}
+
+\hypertarget{_essential_elements}{}
+\subsection{Essential Elements}
+\label{_essential_elements}
+ \par{}The proposed ALPS format is rather small. It consists of five elements (\texttt{alps}, \texttt{doc}, \texttt{descriptor}, \texttt{ext}, and \texttt{link}) and nine attributes (\texttt{format}, \texttt{href}, \texttt{id}, \texttt{name}, \texttt{rel}, \texttt{rt}, \texttt{type}, \texttt{value}, and \texttt{version}). Describing the model in full is beyond the scope of this work. However, there is one important element in the ALPS format which is worth reviewing in order to get an idea of how the format differs from others mentioned in this paper: the \texttt{\textless{}descriptor\textgreater{}} element.
+\hypertarget{_descriptors}{}
+\subsubsection{Descriptors}
+\label{_descriptors}
+ \par{}The most important element in ALPS is the \texttt{\textless{}descriptor\textgreater{}} element. It can occur in one of four ``types'':
+
+\begin{itemize}
+
+\item%
+\texttt{semantic} :
+   Describes data elements such as \textquotedbl{}firstname\textquotedbl{} or \textquotedbl{}hatsize\textquotedbl{}
+
+\item%
+\texttt{safe} :
+   Describes a safe transition such as an HTTP GET request
+
+\item%
+\texttt{unsafe} :
+   Describes a non-idempotent unsafe transition such as an HTTP POST request
+
+\item%
+\texttt{idempotent} :
+   Describes an idempotent, unsafe transition such as an HTTP PUT or DELETE request.
+
+\end{itemize}
+
+ \par{}A typical element used to describe a ``safe'' transition (e.g. HTTP GET to a ``home page'') looks like this:
+\texttt{\textless{}descriptor id=\textquotedbl{}home\textquotedbl{} type=\textquotedbl{}safe\textquotedbl{}\textgreater{}}
+ \par{}This is a guide for generating a message element in a common media type at runtime. For example, here is what it might look like in Collection+JSON:
+ \par{}\texttt{\{{}\textquotedbl{}link\textquotedbl{} : \{{}\textquotedbl{}rel\textquotedbl{} : \textquotedbl{}home\textquotedbl{}, \textquotedbl{}href\textquotedbl{} : \textquotedbl{}\dots{}\textquotedbl{}\}{}\}{}}
+ \par{}Note that the \texttt{\textless{}descriptor\textgreater{}} element contains no \texttt{href} attribute. The URL is supplied by the server implementation and is of no interest when creating the service description.
+ \par{}Some descriptors may have parameters, too. Here is one with a single parameter and a possible HTML representation of the same descriptor.
+\begin{verbatim}<!-- ALPS -->
+<descriptor id="search" type="safe">
+  <descriptor id="fullname" type="semantic" />
+</descriptor>
+
+<!-- HTML -->
+<form href="..." action="get">
+  <input type="text" name="fullname" />
+  <input type="submit" />
+</form>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Descriptors can also dfine data elements that appear within a response. For example, below is a set of descriptors that describe state fields for a contact record (ALPS document authors can optionally nest \texttt{\textless{}descriptor\textgreater{}} elements).
+\begin{verbatim}<descriptor id="contact" type="semantic">
+  <descriptor id="givenName" type="semantic" />
+  <descriptor id="familyName" type="semantic" />
+  <descriptor id="email" type="semantic" />
+  <descriptor id="telephone" type="semantic" />
+</descriptor>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+\hypertarget{_transitions_not_things_or_functionality}{}
+\subsubsection{Transitions, not Things or Functionality}
+\label{_transitions_not_things_or_functionality}
+ \par{}While many of the service description formats focus on describing either functionality (WSDL, etc.) or things (Atom, etc.) ALPS describes individual transitions (\texttt{\textless{}descriptors\textgreater{}} of the type \texttt{safe}, \texttt{unsafe} and \texttt{idempotent}). These transitions may appear on any page. They may even all appear on the same page or they may appear on different pages over the life of the service. ALPS is not meant to tell implementors \emph{where} transitions appear. Instead ALPS documents just indicate \emph{what} transitions are possible and \emph{how} they are completed (via parameters, protocol methods, etc.).
+ \par{}It is this focus on transitions over anything else that sets ALPS apart from the other formats covered here.
+\hypertarget{_an_alps_example}{}
+\subsection{An ALPS Example}
+\label{_an_alps_example}
+ \par{}As an illustration, here is an example of an ALPS document that describes a contacts service that supports search. This shows how ALPS documents can be used to express actions and data elements within a simple problem domain.
+\\minisec{Listing: ALPS Contacts Example}
+\begin{verbatim}<alps version="1.0">
+  <!-- a hypermedia control returns contacts -->
+  <descriptor id="search" type="safe" rt="contact">
+    <descriptor id="name" type="semantic" />
+  </descriptor>
+  <!--  a contact: one or more may be returned -->
+  <descriptor id="contact" type="semantic">
+    <descriptor id="link" type="safe" />
+    <descriptor id="givenName" type="semantic"
+      href="http://schema.org/givenName"/>
+    <descriptor id="familyName" type="semantic"
+      href="http://schema.org/familyName" />
+    <descriptor id="email" type="semantic"
+      href="http://schema.org/email" />
+    <descriptor id="telephone" type="semantic"
+      href="http://schema.org/telephone"/>
+  </descriptor>
+</alps>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}The above document identifies a transition block (\texttt{\textless{}descriptor id=\textquotedbl{}search\textquotedbl{} type=\textquotedbl{}safe\textquotedbl{} /\textgreater{}}) and a data block (\texttt{\textless{}descriptor id=\textquotedbl{}contact\textquotedbl{} type=\textquotedbl{}semantic\textquotedbl{}\textgreater{}}). The data block consists of four sub-elements (\texttt{givenName}, \texttt{familyName}, \texttt{email}, and \texttt{telephone}). In this description, activating the transition block will return one or more data blocks. Note that some data elements refer to content at the schema.org site\hyperlink{SchemaOrg}{[SchemaOrg]}. ALPS documents are able to cite sources for individual descriptors in order to improve human understanding.
+\hypertarget{_alps_implementations_for_contacts}{}
+\subsubsection{ALPS Implementations for Contacts}
+\label{_alps_implementations_for_contacts}
+ \par{}Since ALPS documents only describe services, the information they contain must be mapped to a target message and protocol at implementation time.  Using the guide shown earlier, ALPS values for the \texttt{type} attribute (\texttt{semantic}, \texttt{safe}, \texttt{unsafe}, and \texttt{idempotent}) can be mapped onto protocol verbs and media type elements. Below is an elided HTML representation for the HTTP protocol.
+\\minisec{Listing: ALPS Contacts Implementation for HTML/HTTP}
+\begin{verbatim}<html>
+  <head>
+    <link rel="profile" 
+      href="http://example.org/contacts.alps" />
+  </head>
+  <body>
+    <form href="..." action="get" class="search">
+      <input type="text" name="name" value="" />
+      <input type="submit" />
+    </form>
+    <ul>
+      <li>
+        <dl>
+          <dt>givenName:</dt>
+          <dd>...</dd>
+          <dt>familyName:</dt>
+          <dd>...</dd>
+          <dt>email:</dt>
+          <dd>...</dd>
+        </dl>
+      </li>
+      ...
+    </ul>
+  </body>
+</html>\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+ \par{}Below is an elided Collection+JSON\hyperlink{CJ11}{[CJ11]} representation for The Constrained Application Protocol (CoAP)\hyperlink{COAP18}{[COAP18]}.
+\\minisec{Listing: ALPS Implementation for Collection+JSON/CoAP}
+\begin{verbatim}{ "collection" :
+  {
+    "version" : "1.0",
+    "href" : "...",
+    "links" : [
+      {"link" :
+        {
+          "rel" : "profile",
+          "href" : "http://example.org/contacts.alps"
+        }
+      }
+    ],
+    "items" : [
+      { "href" : "...",
+        "data" : [
+          {"name" : "givenName", "value" : "..."},
+          {"name" : "familyName", "value" : "..."},
+          {"name" : "email", "value" : "...",},
+          {"name" : "telephone", "value" : "...",}
+        ]
+      },
+      ...
+    ],
+    "queries" : [
+      {"link" :
+        {
+          "rel" : "search",
+          "href" : "...,
+          "data" : [{"name" : "name", "value" : "..."}]
+        }
+      }
+    ]
+  }
+}\end{verbatim}
+
+% FIXXME: dirty hack to circumvent missing \n after verbatim
+\hypertarget{_compliance_for_clients_and_servers}{}
+\subsubsection{Compliance for Clients and Servers}
+\label{_compliance_for_clients_and_servers}
+ \par{}The reader may notice that the HTML/HTTP implementation does not render the \texttt{telephone} element in the data block. That implementation is, however, still considered ALPS compliant. The appearance of data or transition elements in an ALPS document is not a \emph{requirement} for server implementors. Servers are free to select elements they wish to support. However, compliant client applications SHOULD to be prepared for all possible data and transition elements that are described in the ALPS document.
+ \par{}This is a reversal of common assumptions about client and server compliance on the Web. Most description formats describe things the server MUST implement and allow client applications to pick and chose the elements they wish to support. There are two important reasons for this reversal in the ALPS design.
+ \par{}First, ALPS documents do not \emph{define} functionality (as do many service description formats). Instead ALPS documents \emph{describe} a problem domain. ALPS documents provide a boundary around a problem by listing all the data and transitions that make up that domain. Just as Medical dictionary has a full set of words for that particular domain, physicians are not required to actually \emph{use} them all with each patient the physician encounters.
+ \par{}Second, since ALPS documents describe a complete problem space, client applications are expected to support all the features described within the document in order to operate successfully with each server implementation it encounters. This enables the \textquotedbl{}serendipitous reuse\textquotedbl{} Charlton talks about\hyperlink{Charlton07}{[Charlton07]}.
+\hypertarget{_challenges_for_alps}{}
+\subsection{Challenges for ALPS}
+\label{_challenges_for_alps}
+ \par{}The ALPS description format is still quite new and has not yet been used in any significant real-world implementations. However, based on a handful of test examples and experiments some challenges have been identified. These will need to be addressed if the ALPS format is to be widely used. Below are the most common challenges encountered to date when working with developers and service architects using the ALPS format.
+ \par{}This is is not exhaustive and may grow as more experiments and testing is done on the ALPS format.
+\hypertarget{_no_urls}{}
+\subsubsection{No URLs}
+\label{_no_urls}
+ \par{}One of the most common challenges to people using the ALPS format is the lack of URLs within the description document. Most code generation tools expect to see URLs. Most human developers hand-writing client applications expect to see URLs, too. While removing URLs from the service document provides additional freedom for both client and server implementors, there are some developers who do not find this new freedom appealing.
+ \par{}Writing clients and servers from ALPS documents puts an additional burden on developers to focus on state machines and state transitions over URLs and objects. This is relatively new for client developers. This new focus is not easily supported by existing developer tooling which means developers must do this work by hand. Intially this adds extra work to the implementation process. It is possible new tooling will come along that supports this kind of description, but none seems forthcoming at this time.
+\hypertarget{_data_quality_descriptions}{}
+\subsubsection{Data Quality Descriptions}
+\label{_data_quality_descriptions}
+ \par{}Some developers complain that ALPS does not easily support strong typing of response representations. This problem is similar to the \textquotedbl{}No URLs\textquotedbl{} problem. Most tooling is geared toward returning serialized objects, not state values expressed in hypermedia message models.
+ \par{}Server implementors often want the service description to include data quality information (e.g. \textquotedbl{}MUST be a string between 10 and 32 characters in length.\textquotedbl{}. etc.). The current ALPS specifications do not support this since one implementation may have very different data quality rules than another. For example the \texttt{postalCode} data validation in Canada is quite different than the one used in the United States. Adding this to ALPS documents over-constrains it's use in other locales.
+ \par{}Client implementors would like to know the possible values for enumerated data elements (e.g. \textquotedbl{}List of valid shoe sizes\textquotedbl{}, etc.). Like server-side quality checks, placing these within the service document limits it's use across similar (but varied) implementations and, so far, adding these elements to ALPS has been resisted.
+\hypertarget{_test_driven_development_support}{}
+\subsubsection{Test-Driven Development Support}
+\label{_test_driven_development_support}
+ \par{}Another important challenge to the adoption of ALPS is it's use in implementations that support the Test-Driven Development (TDD)\hyperlink{Beck02}{[Beck02]} approach. Essentially, clients and servers implementing an ALPS specification are likely to vary the location and even, in some cases, the responses to hypermedia requests. This complicates most TDD tooling that is geared for testing simple functions, parameters, and the expected return values. Developers fully committed to TDD and TDD tooling will be frustrated by the lack of tight coupling between the ALPS description and any given implementation.
+\hypertarget{_summary_4}{}
+\subsection{Summary}
+\label{_summary_4}
+ \par{}The ALPS format (and the resulting implementations) often runs counter to a number of common programming practices. Most developer tooling (editors, test tools, etc.) do not work well with ALPS documents and/or the resulting applications that are ALPS-compliant. Some of this is due to a lack of useful tools. Some is due to programmer habits that may change over time as ALPS and ALPS-like service descriptions become more common. But until these challenges are addressed ALPS is not likely to be widely adopted and used.
+\hypertarget{_conclusion}{}
+\section{Conclusion}
+\label{_conclusion}
+ \par{}There have been more service description formats created in the last two years than the previous ten. Most of them follow two main approaches: describe functionality or describe things. Both approaches lead to client applications tightly bound to a single instance of a service and unable to adapt over time. As new features and parameters are added, these clients ignore them or \emph{hold their noses} and continue doing the same thing they've done since the first day they started running.
+ \par{}This paper looks at aspects of exising description formats that are problematic and suggests a new model for service description (and a sample implementation called ALPS) that makes it possible for client and server applications to share understanding without over-constraining implementations. These same characteristics make it possible for client applications to identify servers (via \texttt{profile} link relation values) that provide the same services and successfully interact with these servers even though these two parties never ``met'' before. It is through this shared understanding that clients can take advantage of \textquotedbl{}serendipitous reuse.\textquotedbl{}
+ \par{}Finally, some important challenges to the adoption of ALPS-like were identified based on a small set of recent tests and experiments with developers using ALPS. Some challenges are related to human habit and others are related to available tooling. Most of these challenges will need to be resolved if ALPS-like service descriptions are to become common-place.
+\hypertarget{_bibliography}{}
+\section{Bibliography}
+\label{_bibliography}
+\begin{description} 
+
+ \item[WSDL01] \label{WSDL01}\hypertarget{WSDL01}{} Web Services Description Language (WSDL) 1.1, 2001 \\\href{http://www.w3.org/TR/wsdl}{http://www.w3.org/TR/wsdl}
+
+
+ \item[SOAP07] \label{SOAP07}\hypertarget{SOAP07}{} SOAP Version 1.2 Part 1: Messaging Framework (Second Edition), 2007 \\\href{http://www.w3.org/TR/soap12-part1/}{http://www.w3.org/TR/soap12-part1/}
+
+
+ \item[WWW90] \label{WWW90}\hypertarget{WWW90}{} WorldWideWeb: Proposal for a HyperText Project \\\href{http://www.w3.org/Proposal.html}{http://www.w3.org/Proposal.html}
+
+
+ \item[CJ11] \label{CJ11}\hypertarget{CJ11}{} Collection+JSON - Hypermedia Type, 2011 \\\href{http://amundsen.com/media-types/collection/}{http://amundsen.com/media-types/collection/}
+
+
+ \item[Fielding08] \label{Fielding08}\hypertarget{Fielding08}{} Roy. T. Fielding, \textquotedbl{}REST APIs must be hypertext-driven\textquotedbl{}, 2008 \\\href{http://roy.gbiv.com/untangled/2008/rest-apis-must-be-hypertext-driven\#{}comment-742}{http://roy.gbiv.com/untangled/2008/rest-apis-must-be-hypertext-driven\#{}comment-742}
+
+
+ \item[WADL09] \label{WADL09}\hypertarget{WADL09}{} Web Application Description Language, 2009 \\\href{http://www.w3.org/Submission/wadl/}{http://www.w3.org/Submission/wadl/}
+
+
+ \item[Swagger13] \label{Swagger13}\hypertarget{Swagger13}{} Swagger Core- API Declaration, 2013 \\\href{https://github.com/wordnik/swagger-core/wiki/API-Declaration}{http://github.com/wordnik/swagger-core/wiki/API-Declaration}
+
+
+ \item[RFC5023] \label{RFC5023}\hypertarget{RFC5023}{} - The Atom Publishing Protocol, 2007 \\\href{http://www.ietf.org/rfc/rfc5023.txt}{http://www.ietf.org/rfc/rfc5023.txt}
+
+
+ \item[WadlXsd] \label{WadlXsd}\hypertarget{WadlXsd}{} XML Schema for WADL, 2009 \\\href{http://www.w3.org/Submission/wadl/wadl.xsd}{http://www.w3.org/Submission/wadl/wadl.xsd}
+
+
+ \item[COAP18] \label{COAP18}\hypertarget{COAP18}{} Constrained Application Protocol (CoAP) - Internet Draft 18, 2013 \\\href{http://tools.ietf.org/search/draft-ietf-core-coap-18}{http://tools.ietf.org/search/draft-ietf-core-coap-18}
+
+
+ \item[RSDL12] \label{RSDL12}\hypertarget{RSDL12}{} RESTful Service Description Language (RSDL), 2012 \\\href{http://g.mamund.com/szowd}{http://g.mamund.com/szowd}
+
+
+ \item[JSONHome03] \label{JSONHome03}\hypertarget{JSONHome03}{} Home Documents for HTTP APIs - Internet Draft 03, 2012 \\\href{http://tools.ietf.org/html/draft-nottingham-json-home-03}{http://tools.ietf.org/html/draft-nottingham-json-home-03}
+
+
+ \item[SoapXmpp] \label{SoapXmpp}\hypertarget{SoapXmpp}{} XEP-0072: SOAP Over XMPP, 1999-2003 \\\href{http://xmpp.org/extensions/xep-0072.html}{http://xmpp.org/extensions/xep-0072.html}
+
+
+ \item[SoapSmtp] \label{SoapSmtp}\hypertarget{SoapSmtp}{} SMTP Transport Binding for SOAP 1.1, 2001 \\\href{http://www.pocketsoap.com/specs/smtpbinding/}{http://www.pocketsoap.com/specs/smtpbinding/}
+
+
+ \item[SoapJms] \label{SoapJms}\hypertarget{SoapJms}{} SOAP over Java Message Service 1.0, 2012 \\\href{http://www.w3.org/TR/SoapJms/}{http://www.w3.org/TR/SoapJms/}
+
+ \item[GoogleDisc] \label{GoogleDisc}\hypertarget{GoogleDisc}{} Google APIs Discovery Service, 2012 \\\href{https://developers.google.com/discovery/v1/reference/apis}{http://developers.google.com/discovery/v1/reference/apis}
+
+ \item[JSONHyper] \label{JSONHyper}\hypertarget{JSONHyper}{} JSON Hyper-Schema: Hypertext definitions for JSON Schema - Internet Draft, 2013, \\\href{http://json-schema.org/latest/json-schema-hypermedia.html}{http://json-schema.org/latest/json-schema-hypermedia.html}
+
+
+ \item[RAML08] \label{RAML08}\hypertarget{RAML08}{} RAML Version 0.8: RESTful API Modeling Language, 2013 \\\href{http://raml.org/spec.html}{http://raml.org/spec.html}
+
+
+ \item[RESTDesc12] \label{RESTDesc12}\hypertarget{RESTDesc12}{} RESTdesc—A Functionality-Centered Approach to Semantic Service Description and Composition, 2012, \\\href{http://g.mamund.com/javvz}{http://g.mamund.com/javvz}
+
+
+ \item[RESTDesc11] \label{RESTDesc11}\hypertarget{RESTDesc11}{} Verbough at el, \textquotedbl{}Efficient Runtime Service Discovery and Consumption with Hyperlinked RESTdesc\textquotedbl{}, 2011 \\\href{http://ruben.verborgh.org/publications/verborgh\_{}nwesp\_{}2011/}{http://ruben.verborgh.org/publications/verborgh\_{}nwesp\_{}2011/}
+
+
+ \item[HyTime94] \label{HyTime94}\hypertarget{HyTime94}{} A Brief History of the Development of SMDL and HyTime, 1994 \\\href{http://www.sgmlsource.com/history/hthist.htm}{http://www.sgmlsource.com/history/hthist.htm}
+
+
+ \item[Charlton07] \label{Charlton07}\hypertarget{Charlton07}{} Stu Charlton, \textquotedbl{}Planned vs. Serendipitous Reuse\textquotedbl{}, 2007 \\\href{http://www.stucharlton.com/blog/archives/000165.html}{http://www.stucharlton.com/blog/archives/000165.html}
+
+
+ \item[SchemaOrg] \label{SchemaOrg}\hypertarget{SchemaOrg}{} Schema.org, accessed January 2014 \\\href{http://schema.org}{http://schema.org}
+
+
+ \item[XMPP11] \label{XMPP11}\hypertarget{XMPP11}{} Extensible Messaging and Presence Protocol (XMPP): Core, 2011 \\\href{http://tools.ietf.org/search/rfc6120}{http://tools.ietf.org/search/rfc6120}
+
+
+ \item[Amundsen11] \label{Amundsen11}\hypertarget{Amundsen11}{} Hypermedia-Oriented Design, 2011 \\\href{http://g.mamund.com/qrkso}{http://g.mamund.com/qrkso}
+
+
+ \item[ALPS01] \label{ALPS01}\hypertarget{ALPS01}{} Application-Level Profile Semantics (ALPS), accessed January 2014, \\\href{http://alps.io/spec/index.html}{http://alps.io/spec/index.html}
+
+
+ \item[RFC6909] \label{RFC6909}\hypertarget{RFC6909}{} The ``profile'' Link Relation Type - RFC6906, 2013 \\\href{http://tools.ietf.org/html/rfc6906}{http://tools.ietf.org/html/rfc6906}
+
+
+ \item[Beck02] \label{Beck02}\hypertarget{Beck02}{} Test-Driven Development: By Example. 2002, Addison-Wesley.
+
+
+ \item[Wulf81] \label{Wulf81}\hypertarget{Wulf81}{} Nestor, J; Wulf, William Allan.; and Lamb, David Alex, \textquotedbl{}IDL, Interface Description Language\textquotedbl{} (1981). Computer Science Department. Paper 2412. \\\href{http://repository.cmu.edu/compsci/2412}{http://repository.cmu.edu/compsci/2412}
+
+
+ \item[Connolly02] \label{Connolly02}\hypertarget{Connolly02}{} Connolly, (2002, October 23rd) \textquotedbl{}on media types for OWL (5.13)\textquotedbl{} \\\href{http://lists.w3.org/Archives/Public/www-webont-wg/2002Oct/0162.html}{http://lists.w3.org/Archives/Public/www-webont-wg/2002Oct/0162.html}
+
+
+ \item[HtmlW3c] \label{HtmlW3c}\hypertarget{HtmlW3c}{} HTML/Specifications (Accessed January 2013) \\\href{http://www.w3.org/community/webed/wiki/HTML/Specifications}{http://www.w3.org/community/webed/wiki/HTML/Specifications}
+
+
+ \item[Voice04] \label{Voice04}\hypertarget{Voice04}{} Voice Extensible Markup Language (VoiceXML) Version 2.0, 2004 \\\href{http://www.w3.org/TR/voicexml20/}{http://www.w3.org/TR/voicexml20/}
+
+ \item[SQL92] \label{SQL92}\hypertarget{SQL92}{} Information Technology - Database Language SQL, 1992 \\\href{http://www.contrib.andrew.cmu.edu/\textasciitilde{}shadow/sql/sql1992.txt}{http://www.contrib.andrew.cmu.edu/\textasciitilde{}shadow/sql/sql1992.txt}
+
+ \end{description}
+\label{footer}\hypertarget{footer}{}
+\end{document}
